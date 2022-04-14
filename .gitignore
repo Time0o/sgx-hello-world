@@ -1,0 +1,14 @@
+enclave/trusted/*
+!enclave/trusted/.gitkeep
+enclave/untrusted/*
+!enclave/untrusted/.gitkeep
+enclave/out/*
+!enclave/out/.gitkeep
+enclave/bin/*
+!enclave/bin/.gitkeep
+enclave/enclave.token
+
+app/out/*
+!app/out/.gitkeep
+app/bin/*
+!app/bin/.gitkeep

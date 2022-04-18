@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package sgx_ra;
+
+message Msg0 {
+    uint32 egid = 1;
+}
+
+service SGXRaServer {
+    rpc SendMsg0(Msg0) returns (google.protobuf.Empty);
+}

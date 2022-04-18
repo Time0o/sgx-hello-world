@@ -3,6 +3,8 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "sgx_edger8r.h"
@@ -28,7 +30,8 @@ public:
         }
 
         // Create enclave.
-        sgx_check(sgx_create_enclave(file_name.c_str(),
+        sgx_check("create enclave",
+                  sgx_create_enclave(file_name.c_str(),
                                      SGX_DEBUG_FLAG,
                                      &token,
                                      &token_update,
@@ -49,9 +52,18 @@ public:
     sgx_enclave_id_t id() const
     { return m_id; }
 
-    template<typename FUNC, typename ...ARGS>
-    void call(FUNC &&func, ARGS &&...args) const
-    { sgx_check(func(m_id, std::forward<ARGS>(args)...)); }
+    template<typename ...ALL_ARGS, typename ...IN_ARGS>
+    auto call(sgx_status_t(*func)(ALL_ARGS...), IN_ARGS &&...in_args) const
+    {
+        using RET_PTR = std::tuple_element_t<1, std::tuple<ALL_ARGS...>>;
+
+        std::remove_pointer_t<RET_PTR> ret {};
+
+        sgx_check("call into enclave",
+                  func(m_id, &ret, std::forward<IN_ARGS>(in_args)...));
+
+        return ret;
+    }
 
 private:
     std::string m_name;

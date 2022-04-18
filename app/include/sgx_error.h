@@ -8,8 +8,8 @@
 class SGXError : public std::runtime_error
 {
 public:
-    SGXError(sgx_status_t err)
-        : std::runtime_error { "SGX error: " + str(err) }
+    SGXError(std::string const &what, sgx_status_t err)
+        : std::runtime_error { what + " (" + str(err) + ")" }
     {}
 
 private:
@@ -53,8 +53,8 @@ private:
     }
 };
 
-inline void sgx_check(sgx_status_t err)
+inline void sgx_check(std::string const &what, sgx_status_t err)
 {
     if (err != SGX_SUCCESS)
-        throw SGXError { err };
+        throw SGXError { "SGX error: failed to " + what, err };
 }

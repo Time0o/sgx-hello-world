@@ -1,5 +1,10 @@
 enclave {
+    include "sgx_tkey_exchange.h"
+
+    from "sgx_tkey_exchange.edl" import *;
+
     trusted {
-        public int generate_random_number(void);
+        public sgx_status_t enclave_ra_init([out] sgx_ra_context_t *ra_context);
+        public sgx_status_t enclave_ra_close(sgx_ra_context_t ra_context);
     };
 };

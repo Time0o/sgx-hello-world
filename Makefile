@@ -53,10 +53,19 @@ ENCLAVE_CFLAGS        := -nostdinc -fvisibility=hidden -fpie -fstack-protector
 ENCLAVE_LDFLAGS       := -L$(SGX_LIBRARY_PATH) \
                          -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles \
                          -Wl,--whole-archive -lsgx_trts_sim -Wl,--no-whole-archive \
-                         -Wl,--start-group -lsgx_tstdc -lsgx_tcrypto -lsgx_tservice_sim -Wl,--end-group \
+                         -Wl,--start-group -lsgx_tstdc -lsgx_tcrypto -lsgx_tkey_exchange -lsgx_tservice_sim -Wl,--end-group \
                          -Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
                          -Wl,-pie,-eenclave_entry -Wl,--export-dynamic\
                          -Wl,--defsym,__ImageBase=0
+
+# Protobuf settings
+
+PROTOC         := protoc
+PROTO_DIR      := proto
+PROTO_OUT_DIR  := $(PROTO_DIR)/out
+PROTO_INCLUDES := -I$(PROTO_OUT_DIR)
+PROTO_CXXFLAGS := -fPIC -O2
+PROTO_LDFLAGS  := -lprotobuf -lgrpc++ -lgrpc++_reflection
 
 # App settings
 
@@ -66,13 +75,17 @@ APP_OUT_DIR  := $(APP_DIR)/out
 APP_BIN_DIR  := $(APP_DIR)/bin
 APP_INCLUDES := -I$(APP_DIR)/include \
                 -I$(SGX_SDK)/include \
-		-I$(ENCLAVE_UNTRUSTED_DIR)
-APP_CXXFLAGS := -fPIC
-APP_LDFLAGS  := -L$(SGX_LIBRARY_PATH) -lsgx_urts_sim
+		-I$(ENCLAVE_UNTRUSTED_DIR) \
+		$(PROTO_INCLUDES)
+APP_CXXFLAGS := -fPIC -std=c++17 -O2
+APP_LDFLAGS  := -L$(SGX_LIBRARY_PATH) \
+		-lsgx_urts_sim -lsgx_ukey_exchange -lsgx_uae_service_sim \
+		-lpthread \
+		$(PROTO_LDFLAGS)
 
 # Build rules
 
-all: $(ENCLAVE_BIN_DIR)/enclave.signed.so $(APP_BIN_DIR)/app
+all: $(ENCLAVE_BIN_DIR)/enclave.signed.so $(APP_BIN_DIR)/client $(APP_BIN_DIR)/server
 
 # Build enclave
 
@@ -97,12 +110,34 @@ $(ENCLAVE_BIN_DIR)/enclave.so: $(ENCLAVE_OUT_DIR)/enclave.o $(ENCLAVE_OUT_DIR)/e
 $(ENCLAVE_BIN_DIR)/enclave.signed.so: $(ENCLAVE_BIN_DIR)/enclave.so
 	$(SGX_ENCLAVE_SIGNER) sign -key $(ENCLAVE_DIR)/enclave_private.pem -enclave $< -out $@ -config $(ENCLAVE_DIR)/enclave.config.xml
 
-# Build app
+# Protobuf files
 
-$(APP_OUT_DIR)/app.o: $(APP_SRC_DIR)/app.cpp $(ENCLAVE_UNTRUSTED_DIR)/enclave_u.c
+$(PROTO_OUT_DIR)/sgx_ra.pb.cc: $(PROTO_DIR)/sgx_ra.proto
+	$(PROTOC) --cpp_out=$(PROTO_OUT_DIR) --proto_path=$(PROTO_DIR) $<
+
+$(PROTO_OUT_DIR)/sgx_ra.grpc.pb.cc: $(PROTO_DIR)/sgx_ra.proto
+	$(PROTOC) --plugin=grpc_cpp_plugin --grpc_out=$(PROTO_OUT_DIR) --proto_path=$(PROTO_DIR) $<
+
+$(PROTO_OUT_DIR)/sgx_ra.pb.o: $(PROTO_OUT_DIR)/sgx_ra.pb.cc
+	$(CXX) $(PROTO_CXXFLAGS) $(PROTO_INCLUDES) -c $< -o $@
+
+$(PROTO_OUT_DIR)/sgx_ra.grpc.pb.o: $(PROTO_OUT_DIR)/sgx_ra.grpc.pb.cc
+	$(CXX) $(PROTO_CXXFLAGS) $(PROTO_INCLUDES) -c $< -o $@
+
+# Build client
+
+$(APP_OUT_DIR)/client.o: $(APP_SRC_DIR)/client.cpp $(ENCLAVE_UNTRUSTED_DIR)/enclave_u.c $(PROTO_OUT_DIR)/sgx_ra.pb.cc $(PROTO_OUT_DIR)/sgx_ra.grpc.pb.cc
 	$(CXX) $(APP_CXXFLAGS) $(APP_INCLUDES) -c $< -o $@
 
-$(APP_BIN_DIR)/app: $(APP_OUT_DIR)/app.o $(ENCLAVE_OUT_DIR)/enclave_u.o
+$(APP_BIN_DIR)/client: $(APP_OUT_DIR)/client.o $(ENCLAVE_OUT_DIR)/enclave_u.o $(PROTO_OUT_DIR)/sgx_ra.pb.o $(PROTO_OUT_DIR)/sgx_ra.grpc.pb.o
+	$(CXX) $^ -o $@ $(APP_LDFLAGS)
+
+# Build server
+
+$(APP_OUT_DIR)/server.o: $(APP_SRC_DIR)/server.cpp $(PROTO_OUT_DIR)/sgx_ra.pb.cc $(PROTO_OUT_DIR)/sgx_ra.grpc.pb.cc
+	$(CXX) $(APP_CXXFLAGS) $(APP_INCLUDES) -c $< -o $@
+
+$(APP_BIN_DIR)/server: $(APP_OUT_DIR)/server.o $(PROTO_OUT_DIR)/sgx_ra.pb.o $(PROTO_OUT_DIR)/sgx_ra.grpc.pb.o
 	$(CXX) $^ -o $@ $(APP_LDFLAGS)
 
 # Clean build
@@ -114,5 +149,6 @@ clean:
 	       $(ENCLAVE_TRUSTED_DIR)/* \
 	       $(ENCLAVE_UNTRUSTED_DIR)/* \
 	       $(ENCLAVE_BIN_DIR)/* \
+	       $(PROTO_OUT_DIR)/* \
 	       $(APP_OUT_DIR)/* \
 	       $(APP_BIN_DIR)/*

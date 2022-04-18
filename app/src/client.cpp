@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -62,17 +63,35 @@ private:
         spdlog::info("Performing remote attestation");
 
         // Send message 0.
-        uint32_t msg0_extended_epid_group_id;
+        uint32_t msg0_egid;
         sgx_check("get extended EPID group ID",
-                  sgx_get_extended_epid_group_id(&msg0_extended_epid_group_id));
+                  sgx_get_extended_epid_group_id(&msg0_egid));
 
         Msg0 msg0;
-        msg0.set_extended_epid_group_id(msg0_extended_epid_group_id);
+        msg0.set_egid(msg0_egid);
 
         spdlog::info("Sending message 0 to server");
 
         rpc("send Msg0",
             &SGXRaServer::Stub::SendMsg0, msg0, &rpc_empty);
+
+        // Send message 1.
+        sgx_ra_msg1_t msg1_;
+        sgx_check("construct client's DHKE public key",
+		  sgx_ra_get_msg1(m_context, m_enclave->id(), sgx_ra_get_ga, &msg1_));
+
+	uint32_t msg1_gid;
+	std::memcpy(&msg1_gid, msg1_.gid, 4);
+
+        Msg1 msg1;
+        msg1.mutable_g_a()->set_gx(msg1_.g_a.gx, 32);
+        msg1.mutable_g_a()->set_gy(msg1_.g_a.gy, 32);
+        msg1.set_gid(msg1_gid);
+
+        spdlog::info("Sending message 1 to server");
+
+        rpc("send Msg1",
+            &SGXRaServer::Stub::SendMsg1, msg1, &rpc_empty);
     }
 
     template<typename FUNC, typename REQUEST, typename RESPONSE>

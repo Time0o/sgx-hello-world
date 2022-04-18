@@ -19,7 +19,7 @@ private:
         spdlog::info("Received message 0 from client");
 
         // Assert that extended EPID group ID is zero.
-        if (msg0->extended_epid_group_id() == 0) {
+        if (msg0->egid() == 0) {
             spdlog::info("Message 0 contains valid extended EPID group ID");
             return grpc::Status::OK;
         } else {
@@ -29,6 +29,17 @@ private:
                 "Invalid extended group ID"
             };
         }
+    }
+
+    grpc::Status SendMsg1(grpc::ServerContext *context,
+                          Msg1 const *msg1,
+                          google::protobuf::Empty *) override
+    {
+        spdlog::info("Received message 1 from client");
+
+	// XXX
+
+        return grpc::Status::OK;
     }
 };
 

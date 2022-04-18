@@ -8,6 +8,17 @@ message Msg0 {
     uint32 egid = 1;
 }
 
+message Msg1 {
+    message Ec256Public {
+        bytes gx = 1;
+        bytes gy = 2;
+    }
+
+    Ec256Public g_a = 1;
+    uint32 gid = 2;
+}
+
 service SGXRaServer {
     rpc SendMsg0(Msg0) returns (google.protobuf.Empty);
+    rpc SendMsg1(Msg1) returns (google.protobuf.Empty);
 }

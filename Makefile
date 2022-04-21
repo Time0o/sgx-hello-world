@@ -80,6 +80,7 @@ APP_INCLUDES := -I$(APP_DIR)/include \
 APP_CXXFLAGS := -fPIC -std=c++17 -O2
 APP_LDFLAGS  := -L$(SGX_LIBRARY_PATH) \
 		-lsgx_urts_sim -lsgx_ukey_exchange -lsgx_uae_service_sim \
+		-lcryptopp \
 		-lpthread \
 		$(PROTO_LDFLAGS)
 
